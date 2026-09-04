@@ -18,7 +18,7 @@ variable "vpc_id" {
 
 variable "cluster_version" {
   type    = string
-  default = "1.31"
+  default = "1.35"
 }
 
 variable "node_instance_type" {
