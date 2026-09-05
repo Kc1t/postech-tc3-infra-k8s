@@ -20,9 +20,9 @@ output "api_gateway_endpoint" {
 
 output "api_gateway_routes" {
   value = {
-    emitir_token   = "POST ${aws_apigatewayv2_api.this.api_endpoint}/auth"
-    rotas_abertas  = "GET /{proxy+} e POST /api/v1/auth/{proxy+}"
-    rotas_regidas  = "ANY /api/v1/{proxy+} (authorizer ${local.authorizer_enabled ? "ativo" : "desligado"})"
+    emitir_token  = "POST ${aws_apigatewayv2_api.this.api_endpoint}/auth"
+    rotas_abertas = "GET /{proxy+} e POST /api/v1/auth/{proxy+}"
+    rotas_regidas = "ANY /api/v1/{proxy+} (authorizer ${local.authorizer_enabled ? "ativo" : "desligado"})"
   }
 }
 
