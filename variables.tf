@@ -41,7 +41,34 @@ variable "node_desired" {
   default = 2
 }
 
+variable "lambda_issuer_invoke_arn" {
+  type    = string
+  default = ""
+}
+
+variable "lambda_issuer_function_name" {
+  type    = string
+  default = ""
+}
+
 variable "lambda_authorizer_invoke_arn" {
   type    = string
   default = ""
+}
+
+variable "lambda_authorizer_function_name" {
+  type    = string
+  default = ""
+}
+
+variable "app_backend_url" {
+  type        = string
+  default     = ""
+  description = "URL publica do Service LoadBalancer da aplicacao, ex http://a1b2c3.elb.amazonaws.com"
+}
+
+variable "metrics_server_version" {
+  type        = string
+  default     = null
+  description = "Versao do addon metrics-server; null usa a padrao da versao do cluster"
 }

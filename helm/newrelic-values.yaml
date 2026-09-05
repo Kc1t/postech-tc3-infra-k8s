@@ -1,0 +1,17 @@
+kube-state-metrics:
+  enabled: true
+
+nri-kube-events:
+  enabled: true
+
+nri-metadata-injection:
+  enabled: true
+
+newrelic-logging:
+  enabled: true
+
+newrelic-prometheus-agent:
+  enabled: true
+
+newrelic-infrastructure:
+  privileged: true

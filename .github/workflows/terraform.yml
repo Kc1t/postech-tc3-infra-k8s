@@ -81,3 +81,33 @@ jobs:
       - run: terraform init -backend-config="key=k8s/${TF_ENV}.tfstate" -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" -backend-config="region=${{ secrets.AWS_REGION }}"
 
       - run: terraform apply -auto-approve -var-file=envs/${TF_ENV}.tfvars
+
+      - name: Configurar kubectl
+        run: aws eks update-kubeconfig --region "${{ secrets.AWS_REGION }}" --name "$(terraform output -raw cluster_name)"
+
+      - name: Instalar o agente do New Relic
+        env:
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+        run: |
+          if [ -z "$NEW_RELIC_LICENSE_KEY" ]; then
+            echo "NEW_RELIC_LICENSE_KEY nao configurada, pulando a instalacao do agente"
+            exit 0
+          fi
+          helm repo add newrelic https://helm-charts.newrelic.com
+          helm repo update
+          CLUSTER_NAME="$(terraform output -raw cluster_name)"
+          helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+            --namespace newrelic --create-namespace \
+            --values helm/newrelic-values.yaml \
+            --set global.licenseKey="$NEW_RELIC_LICENSE_KEY" \
+            --set global.cluster="$CLUSTER_NAME" \
+            --wait --timeout 10m
+
+      - name: Publicar o endpoint do gateway
+        run: |
+          {
+            echo "### API Gateway"
+            echo '```'
+            terraform output -raw api_gateway_endpoint
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
