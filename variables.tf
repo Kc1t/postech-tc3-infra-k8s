@@ -72,3 +72,9 @@ variable "metrics_server_version" {
   default     = null
   description = "Versao do addon metrics-server; null usa a padrao da versao do cluster"
 }
+
+variable "vpc_cni_version" {
+  type        = string
+  default     = null
+  description = "Versao do addon vpc-cni; null usa a padrao da versao do cluster"
+}
