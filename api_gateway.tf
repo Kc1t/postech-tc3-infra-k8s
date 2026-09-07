@@ -11,6 +11,7 @@ resource "aws_apigatewayv2_api" "this" {
   tags = local.tags
 }
 
+# tfsec:ignore:aws-cloudwatch-log-group-customer-key O Learner Lab nao permite criar CMK; o log fica com a chave gerenciada da AWS.
 resource "aws_cloudwatch_log_group" "gateway" {
   name              = "/aws/apigateway/${local.name}"
   retention_in_days = 14
