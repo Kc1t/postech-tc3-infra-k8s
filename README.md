@@ -13,7 +13,7 @@ Entrega a plataforma onde a aplicação roda: cluster EKS com node group escalá
 - Terraform >= 1.5
 - AWS: EKS, API Gateway v2 (HTTP API), CloudWatch Logs
 - Backend de state: S3
-- CI/CD: GitHub Actions com OIDC
+- CI/CD: GitHub Actions com a credencial de sessão do AWS Academy Learner Lab
 
 ## Arquitetura
 
@@ -76,7 +76,8 @@ A rota **mais específica vence**. É por isso que `POST /api/v1/auth/{proxy+}` 
 versions.tf              providers e backend
 variables.tf             entradas
 main.tf                  locals e lookup de subnets
-eks.tf                   cluster + managed node group
+eks.tf                   cluster + managed node group (recursos nativos, com as roles do Learner Lab)
+iam.tf                   lookup das roles LabEksClusterRole e LabEksNodeRole
 addons.tf                addon metrics-server (pre-requisito do HPA)
 api_gateway.tf           HTTP API, stage, rotas, integracoes e authorizer
 helm/newrelic-values.yaml valores do nri-bundle
@@ -122,6 +123,18 @@ O `Service` da aplicacao e do tipo `LoadBalancer` e provisiona um NLB publico, q
 
 A protecao nao depende disso: o middleware `Auth` da aplicacao valida o mesmo JWT HS256 que o authorizer valida. O gateway e a primeira camada, a aplicacao e a segunda. Fechar o NLB exigiria VPC Link com NLB interno, registrado como alternativa no ADR de comunicacao.
 
+## Deploy ativo
+
+| O quê | Onde |
+|---|---|
+| API Gateway (entrada pública) | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com |
+| Swagger UI, pelo gateway | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com/swagger/index.html |
+| Collection Postman | [`postman_collection.json`](https://github.com/Kc1t/postech-tc3-app/blob/main/postman_collection.json) no repositório da aplicação |
+| Cluster | `postech-tc3-prod` — EKS 1.35, 2 a 5 nós `t3.medium`, namespaces `postech` e `postech-homolog` |
+| Dashboard New Relic | links na seção *Deploy ativo* do [README da aplicação](https://github.com/Kc1t/postech-tc3-app#deploy-ativo) |
+
+O cluster e o gateway de produção foram criados na primeira validação no Learner Lab e importados para o state do Terraform (`terraform import`, chave `k8s/prod.tfstate`). Desde então quem os altera é o pipeline, no push da `main`.
+
 ## Execução local
 
 ```bash
@@ -143,10 +156,12 @@ O `lambda_authorizer_invoke_arn` é opcional: sem ele o authorizer não é criad
 | Evento | Ação |
 |---|---|
 | Pull Request | `fmt`, `validate`, `tfsec` e `plan` em staging |
-| Push em `homolog` | `apply` em staging |
+| Push em `homolog` | `fmt`, `validate` e `tfsec`, sem apply — o cluster é único, com um namespace por ambiente (ADR-0010) |
 | Push em `main` | `apply` em produção |
 
-Secrets necessários: `AWS_ROLE_ARN` e `TF_STATE_BUCKET`.
+Secrets necessários: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `TF_STATE_BUCKET` e, para o agente do New Relic, `NEW_RELIC_LICENSE_KEY`.
+
+O Learner Lab bloqueia `iam:GetRole` na role da sessão e a criação de roles IAM e chaves KMS. Por isso o `eks.tf` usa `aws_eks_cluster` e `aws_eks_node_group` direto, em vez do módulo `terraform-aws-modules/eks`, e deixa de fora a AZ `use1-az3`, onde o EKS não aceita control plane.
 
 ## Escalabilidade
 
