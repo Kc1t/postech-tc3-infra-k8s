@@ -29,6 +29,12 @@ resource "aws_eks_cluster" "this" {
   depends_on = [aws_cloudwatch_log_group.cluster]
 
   tags = local.tags
+
+  # A API nao devolve bootstrap_self_managed_addons; num cluster importado ele volta como false e
+  # forcaria recriar o cluster. Cluster novo segue com o padrao true (kube-proxy e coredns instalados).
+  lifecycle {
+    ignore_changes = [bootstrap_self_managed_addons]
+  }
 }
 
 # tfsec:ignore:aws-cloudwatch-log-group-customer-key O Learner Lab nao permite criar CMK; o log fica com a chave gerenciada da AWS.
