@@ -78,3 +78,19 @@ variable "vpc_cni_version" {
   default     = null
   description = "Versao do addon vpc-cni; null usa a padrao da versao do cluster"
 }
+
+variable "cluster_az_ids" {
+  type        = list(string)
+  default     = ["use1-az1", "use1-az2", "use1-az4", "use1-az5", "use1-az6"]
+  description = "AZs das subnets do cluster; use1-az3 fica de fora porque o EKS nao aceita control plane nela"
+}
+
+variable "lab_eks_cluster_role_regex" {
+  type    = string
+  default = "LabEksClusterRole"
+}
+
+variable "lab_eks_node_role_regex" {
+  type    = string
+  default = "LabEksNodeRole"
+}

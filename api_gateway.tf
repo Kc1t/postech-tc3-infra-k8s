@@ -95,13 +95,19 @@ resource "aws_apigatewayv2_route" "auth" {
   target    = "integrations/${aws_apigatewayv2_integration.issuer[0].id}"
 }
 
+# O caminho original vai inteiro para a aplicacao. Com "/{proxy}" na URI, a rota ANY /api/v1/{proxy+}
+# entregaria so o trecho depois do prefixo, e /api/v1/service-orders chegaria como /service-orders.
 resource "aws_apigatewayv2_integration" "app" {
   count = local.backend_enabled ? 1 : 0
 
   api_id             = aws_apigatewayv2_api.this.id
   integration_type   = "HTTP_PROXY"
   integration_method = "ANY"
-  integration_uri    = "${var.app_backend_url}/{proxy}"
+  integration_uri    = var.app_backend_url
+
+  request_parameters = {
+    "overwrite:path" = "$request.path"
+  }
 }
 
 resource "aws_apigatewayv2_route" "app_health" {

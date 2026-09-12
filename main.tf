@@ -13,4 +13,9 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [var.vpc_id]
   }
+
+  filter {
+    name   = "availability-zone-id"
+    values = var.cluster_az_ids
+  }
 }
