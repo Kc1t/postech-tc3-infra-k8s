@@ -11,9 +11,11 @@ Entrega a plataforma onde a aplicação roda: cluster EKS com node group escalá
 ## Tecnologias
 
 - Terraform >= 1.5
-- AWS: EKS, API Gateway v2 (HTTP API), CloudWatch Logs
+- AWS: EKS (addons `metrics-server` e `vpc-cni` com NetworkPolicy), API Gateway v2 (HTTP API), CloudWatch Logs
+- New Relic: `nri-bundle` instalado via Helm pelo pipeline
 - Backend de state: S3
 - CI/CD: GitHub Actions com a credencial de sessão do AWS Academy Learner Lab
+- Dockerfile: não se aplica — este repositório só provisiona infraestrutura
 
 ## Arquitetura
 
@@ -78,7 +80,7 @@ variables.tf             entradas
 main.tf                  locals e lookup de subnets
 eks.tf                   cluster + managed node group (recursos nativos, com as roles do Learner Lab)
 iam.tf                   lookup das roles LabEksClusterRole e LabEksNodeRole
-addons.tf                addon metrics-server (pre-requisito do HPA)
+addons.tf                metrics-server (pre-requisito do HPA) e vpc-cni com NetworkPolicy
 api_gateway.tf           HTTP API, stage, rotas, integracoes e authorizer
 helm/newrelic-values.yaml valores do nri-bundle
 outputs.tf               endpoint do cluster, endpoint do gateway, rotas
@@ -98,7 +100,7 @@ A rota mais especifica vence, entao `ANY /api/v1/{proxy+}` protege tudo sob `/ap
 
 O authorizer roda com TTL de cache zero: o veredito e recalculado a cada requisicao, para que a desativacao de um cliente tenha efeito imediato.
 
-As tres variaveis `lambda_issuer_invoke_arn`, `lambda_authorizer_invoke_arn` e `app_backend_url` sao opcionais. Vazias, o gateway sobe sem as rotas correspondentes — o que permite aplicar a infraestrutura antes da Lambda e da aplicacao existirem.
+As cinco variaveis `lambda_issuer_invoke_arn`, `lambda_issuer_function_name`, `lambda_authorizer_invoke_arn`, `lambda_authorizer_function_name` e `app_backend_url` sao opcionais. Vazias, o gateway sobe sem as rotas correspondentes — o que permite aplicar a infraestrutura antes da Lambda e da aplicacao existirem.
 
 ### Ordem de aplicação entre repositórios
 
@@ -130,7 +132,7 @@ A protecao nao depende disso: o middleware `Auth` da aplicacao valida o mesmo JW
 | API Gateway (entrada pública) | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com |
 | Swagger UI, pelo gateway | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com/swagger/index.html |
 | Collection Postman | [`postman_collection.json`](https://github.com/Kc1t/postech-tc3-app/blob/main/postman_collection.json) no repositório da aplicação |
-| Cluster | `postech-tc3-prod` — EKS 1.35, 2 a 5 nós `t3.medium`, namespaces `postech` e `postech-homolog` |
+| Cluster | `postech-tc3-prod` — EKS 1.35, 2 nós `t3.medium` (máximo 5), namespaces `postech` e `postech-homolog` |
 | Dashboard New Relic | links na seção *Deploy ativo* do [README da aplicação](https://github.com/Kc1t/postech-tc3-app#deploy-ativo) |
 
 O cluster e o gateway de produção foram criados na primeira validação no Learner Lab e importados para o state do Terraform (`terraform import`, chave `k8s/prod.tfstate`). Desde então quem os altera é o pipeline, no push da `main`.
@@ -155,9 +157,9 @@ O `lambda_authorizer_invoke_arn` é opcional: sem ele o authorizer não é criad
 
 | Evento | Ação |
 |---|---|
-| Pull Request | `fmt`, `validate`, `tfsec` e `plan` em staging |
-| Push em `homolog` | `fmt`, `validate` e `tfsec`, sem apply — o cluster é único, com um namespace por ambiente (ADR-0010) |
-| Push em `main` | `apply` em produção |
+| Pull Request | `fmt`, `validate`, `tfsec` e `plan` contra o state de produção |
+| Push em `homolog` | `fmt`, `validate`, `tfsec` e `plan` automático contra o state de produção, sem apply — o cluster é único, com um namespace por ambiente ([ADR-0010](https://github.com/Kc1t/postech-tc3-app/blob/main/docs/adr/0010-cluster-unico-dois-namespaces.md)) |
+| Push em `main` | `apply` em produção e instalação do `nri-bundle` |
 
 Secrets necessários: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `TF_STATE_BUCKET` e, para o agente do New Relic, `NEW_RELIC_LICENSE_KEY`.
 
@@ -175,16 +177,16 @@ flowchart TB
     hpa -->|sim| mais["mais réplicas<br/>até 10"]
     mais --> cabe{"há nó com espaço?"}
     cabe -->|sim| ok(["pods rodando"])
-    cabe -->|não| pend(["pods em Pending<br/>até o node group crescer"])
+    cabe -->|não| pend(["pods em Pending<br/>até alguém aumentar o desired_size"])
 
     style pend fill:#ffe0b2,stroke:#e80
 ```
 
-- **Nós:** managed node group entre `node_min` e `node_max`.
+- **Nós:** managed node group com 2 nós em produção, limitado a `node_min`..`node_max` (2 a 5). **Não há Cluster Autoscaler**: o número de nós só muda com `aws eks update-nodegroup-config`, porque o Terraform ignora o `desired_size` depois de criado.
 - **Pods:** HPA declarado nos manifests do `postech-tc3-app`, 2 a 10 réplicas por CPU e memória.
 - O addon **metrics-server** é provisionado aqui. Sem ele o HPA fica em `<unknown>` e nunca escala — falha silenciosa, não erro.
 
-Escalar pods só resolve enquanto houver capacidade de nó. No teto do node group, o HPA continua pedindo réplicas e elas ficam em `Pending`. Detalhamento no [ADR-0008](https://github.com/Kc1t/postech-tc3-app/blob/main/docs/adr/0008-hpa.md).
+Escalar pods só resolve enquanto houver capacidade de nó. Quando os nós instalados lotam, o HPA continua pedindo réplicas e elas ficam em `Pending`. Detalhamento no [ADR-0008](https://github.com/Kc1t/postech-tc3-app/blob/main/docs/adr/0008-hpa.md).
 
 ## Custo
 
